@@ -200,6 +200,7 @@ to:
 These opportunity estimates are **mathematical prioritisation gaps**, not forecasts of guaranteed incremental carts or purchases.
 
 A separate directional signal was retained for TV, where the estimated gaps were large but peer sample sizes were below the reliability thresholds.
+
 ---
 
 ## Driver Deep Dive — Price and Brand Signals
@@ -281,3 +282,152 @@ The available data was not sufficient to determine whether the observed differen
 - A specific operational or product issue was the root cause.
 
 Additional data would be required to test these hypotheses reliably.
+---
+
+## Recommendations
+
+The analysis supports **targeted follow-up investigation rather than immediate prescriptive actions**.
+
+| Priority area | Recommended investigation |
+|---|---|
+| CPU | Check inventory availability, product compatibility information, delivery conditions and checkout friction |
+| Cooler | Review assortment, price positioning and product-page quality |
+| Monitor | Investigate downstream completion, price competitiveness and brand differences |
+| TV | Validate high-price product positioning, promotions and value communication |
+| Videoregister | Improve brand and category data coverage before deeper attribution |
+
+These recommendations are investigation priorities rather than confirmed solutions because the available dataset does not contain enough information to establish root causes.
+
+Additional data that would strengthen the diagnosis includes:
+
+- inventory availability
+- promotions and discounts
+- shipping fees
+- delivery lead time
+- product-page completeness
+- ratings and reviews
+- checkout error events
+
+---
+
+## Data Quality & Limitations
+
+Several data-quality constraints affected how the analysis was designed and interpreted.
+
+### Category mapping
+
+The dataset contained:
+
+| Metric | Result |
+|---|---:|
+| Total category IDs | 718 |
+| Known category IDs | 281 |
+| Unmapped category IDs | 437 |
+| Known business category codes | 107 |
+| Unmapped category event rows | 236,172 |
+
+Unmapped categories were retained in overall funnel metrics but excluded from named-category rankings.
+
+### Brand coverage
+
+Brand completeness varied significantly across categories:
+
+| Category | Missing-brand rate |
+|---|---:|
+| TV | 2.42% |
+| Monitor | 4.70% |
+| Cooler | 22.34% |
+| Videoregister | 35.43% |
+
+This was one reason TV and Monitor were more suitable for brand-level deep dives, while conclusions for Cooler and Videoregister required greater caution.
+
+### Sample-size thresholds
+
+Practical minimum sample thresholds were applied to reduce unstable comparisons:
+
+| Analysis | Minimum sample |
+|---|---:|
+| Category View-to-Cart | 2,643 viewing sessions |
+| Category Cart-to-Purchase | 196 cart sessions |
+| Brand View-to-Cart | 150 viewing sessions |
+| Brand Cart-to-Purchase | 30 cart sessions |
+
+These thresholds are **practical stability rules based on the observed sample distributions**, not statistical significance tests.
+
+### Evidence limitations
+
+The dataset did not contain:
+
+- order IDs or quantities
+- inventory status
+- promotions or discounts
+- shipping fees or delivery promises
+- product-page quality measures
+- checkout-error events
+
+Purchase events therefore represent **observed purchase activity rather than confirmed order volume**.
+
+Brand and price results should be interpreted as **association and investigation signals rather than causal proof**.
+
+![Methodology and Data Quality](images/methodology_data_quality.png)
+
+---
+
+## Dashboard Structure
+
+The Power BI report contains four pages:
+
+1. **Executive Overview**  
+   Overall funnel performance, monthly trends and category opportunity priorities.
+
+2. **Category Diagnosis**  
+   Peer-relative View-to-Cart and Cart-to-Purchase performance used to identify which funnel stage requires attention.
+
+3. **Driver Deep Dive**  
+   Price and brand investigation signals for TV and Monitor.
+
+4. **Methodology & Data Quality**  
+   Session reconstruction, sample thresholds, validation checks and evidence limitations.
+
+---
+
+## Technical Implementation
+
+### Tools
+
+- **DuckDB / SQL** — data profiling, session reconstruction, funnel calculation, category benchmarking and driver analysis
+- **Power BI / DAX** — KPI measures, visual-level filters, slicers, relationships and interactive dashboard design
+- **GitHub** — project documentation and reproducible analysis structure
+
+### Analytical grain
+
+The analysis moved through several levels of grain depending on the business question:
+
+`Event → Session → Session + Category → Session + Brand / Product`
+
+Using the correct grain helped avoid misleading results caused by repeated raw events or inappropriate denominators.
+
+### Key analytical techniques
+
+- inactivity-based session reconstruction
+- SQL window functions
+- ordered funnel metrics
+- weighted benchmarks
+- leave-one-out peer benchmarks
+- sample-size thresholds
+- sensitivity checks
+- opportunity-gap prioritisation
+- brand and price segmentation
+- Power BI DAX measures and dimensional filtering
+
+---
+
+## Outcome
+
+Built an end-to-end analytical framework that transformed approximately **885K raw ecommerce events** into reliable funnel metrics, identified category-specific versus peer-group performance patterns, prioritised investigation opportunities, and translated the findings into an interactive Power BI decision dashboard.
+
+The project demonstrates the ability to move from:
+
+**raw data → metric design → validation → diagnosis → prioritisation → business communication**
+
+rather than simply producing descriptive charts.
