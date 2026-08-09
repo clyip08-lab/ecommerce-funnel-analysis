@@ -158,6 +158,93 @@ SELECT
 
 FROM event_session_numbers;
 
+-- ============================================================
+-- 60-MINUTE SENSITIVITY CHECK
+-- ============================================================
+--
+-- Purpose:
+-- Test whether the main session count is highly sensitive to
+-- the 30-minute inactivity assumption.
+--
+-- The same session logic is applied, changing only the
+-- inactivity threshold from 30 to 60 minutes.
+-- ============================================================
+
+CREATE OR REPLACE TABLE analysis_events_60 AS
+
+WITH session_flags_60 AS (
+
+    SELECT
+        *,
+
+        CASE
+            WHEN previous_event_time IS NULL
+                THEN 1
+
+            WHEN CAST(event_time_utc AS DATE)
+               <> CAST(previous_event_time AS DATE)
+                THEN 1
+
+            WHEN event_time_utc - previous_event_time
+                 >= INTERVAL '60 minutes'
+                THEN 1
+
+            ELSE 0
+
+        END AS new_session_flag_60
+
+    FROM event_gaps
+),
+
+session_numbers_60 AS (
+
+    SELECT
+        *,
+
+        SUM(new_session_flag_60) OVER (
+            PARTITION BY user_id, user_session
+            ORDER BY event_time_utc, source_event_id
+            ROWS BETWEEN UNBOUNDED PRECEDING
+                     AND CURRENT ROW
+        ) AS analytical_session_number_60
+
+    FROM session_flags_60
+)
+
+SELECT
+    source_event_id,
+    event_time_utc,
+    event_type,
+    product_id,
+    category_id,
+    category_code,
+    brand,
+    price,
+    user_id,
+    user_session,
+
+    analytical_session_number_60,
+
+    CONCAT(
+        user_id,
+        '|',
+        user_session,
+        '|',
+        CAST(analytical_session_number_60 AS VARCHAR)
+    ) AS analytical_session_id
+
+FROM session_numbers_60;
+
+
+-- Validate sensitivity result
+
+SELECT
+    COUNT(DISTINCT analytical_session_id)
+        AS analytical_sessions_60min
+FROM analysis_events_60;
+
+-- Expected:
+-- 531,421
 
 -- ============================================================
 -- VALIDATION
