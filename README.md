@@ -22,3 +22,69 @@ Key findings:
 - Brand and price analysis identified investigation signals, but the available data was not sufficient to establish direct root causes.
 
 ![Executive Overview](images/executive_overview.png)
+
+
+---
+
+## Analytical Challenge
+
+The raw event data could not be used directly for reliable funnel analysis.
+
+Three analytical issues had to be addressed before interpreting conversion performance.
+
+### 1. Raw session IDs were not sufficient for analysis
+
+The supplied session identifiers could span unusually long periods or be reused. I therefore reconstructed analytical sessions using:
+
+- `user_id`
+- the original session ID
+- a **30-minute inactivity rule**
+
+This produced **539,812 analytical sessions**.
+
+A **60-minute sensitivity check** produced **531,421 sessions**, only about **1.55% fewer**, indicating that the main conclusions were not highly sensitive to the session timeout assumption.
+
+### 2. Event presence does not necessarily mean funnel progression
+
+A session containing both a view and a cart does not automatically mean that the view happened before the cart.
+
+I therefore defined **ordered funnel metrics** that required the observed events to occur in sequence:
+
+`View → Cart → Purchase`
+
+This reduced the risk of treating simple event co-occurrence as genuine funnel progression.
+
+### 3. One site-wide benchmark could misclassify categories
+
+Different product families can have naturally different customer journeys.
+
+I therefore used two benchmark levels:
+
+- **Weighted overall benchmark** — to understand site-level performance.
+- **Leave-one-out category peer benchmark** — to compare each category with other categories in the same category family.
+
+This helped distinguish true category-specific underperformance from broader category-family behaviour.
+
+---
+
+## Methodology
+
+The analysis followed six main stages:
+
+1. **Profile the raw event data**  
+   Checked event types, date coverage, category mapping, missing values, brand coverage and price distributions.
+
+2. **Reconstruct analytical sessions**  
+   Applied the 30-minute inactivity rule and validated the result with a 60-minute sensitivity check.
+
+3. **Define ordered funnel metrics**  
+   Built session-level View-to-Cart, Cart-to-Purchase and Purchase-session metrics using event sequence.
+
+4. **Analyse performance over time**  
+   Compared monthly funnel performance to identify which stage was driving overall change.
+
+5. **Benchmark and prioritise categories**  
+   Compared categories with relevant peers and combined performance gaps with denominator volume to identify investigation priorities.
+
+6. **Investigate possible drivers**  
+   Analysed brand and price patterns for selected categories while keeping causal limitations explicit.
