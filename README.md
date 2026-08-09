@@ -431,3 +431,35 @@ The project demonstrates the ability to move from:
 **raw data → metric design → validation → diagnosis → prioritisation → business communication**
 
 rather than simply producing descriptive charts.
+
+
+---
+
+## Repository Guide
+
+### SQL Analysis
+
+The SQL workflow follows the analytical process from raw-data validation to Power BI outputs:
+
+| File | Purpose |
+|---|---|
+| [`01_data_profiling.sql`](sql/01_data_profiling.sql) | Profile raw events, missing values, category mapping and price distributions |
+| [`02_session_reconstruction.sql`](sql/02_session_reconstruction.sql) | Reconstruct 30-minute analytical sessions and perform the 60-minute sensitivity check |
+| [`03_funnel_metrics.sql`](sql/03_funnel_metrics.sql) | Build session-level ordered funnel metrics |
+| [`04_time_trend_analysis.sql`](sql/04_time_trend_analysis.sql) | Analyse monthly funnel performance |
+| [`05_category_peer_analysis.sql`](sql/05_category_peer_analysis.sql) | Build peer benchmarks and prioritise category opportunity gaps |
+| [`06_brand_price_drivers.sql`](sql/06_brand_price_drivers.sql) | Investigate brand and price signals |
+| [`07_powerbi_output_tables.sql`](sql/07_powerbi_output_tables.sql) | Build and validate Power BI semantic output tables |
+
+### Documentation
+
+- [Detailed Methodology](docs/methodology.md) — session rules, funnel definitions, peer benchmarking, thresholds and evidence boundaries
+- [Data Dictionary](docs/data_dictionary.md) — definitions of key raw, derived and Power BI fields
+- [Power BI Design Notes](powerbi/README.md) — why each chart, layout and Power BI feature was selected
+
+### Dashboard Pages
+
+- [Executive Overview](images/executive_overview.png)
+- [Category Diagnosis](images/category_diagnosis.png)
+- [Driver Deep Dive](images/driver_deep_dive.png)
+- [Methodology & Data Quality](images/methodology_data_quality.png)
