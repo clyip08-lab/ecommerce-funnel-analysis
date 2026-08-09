@@ -1,0 +1,221 @@
+-- ============================================================
+-- 02_session_reconstruction.sql
+-- E-commerce Funnel Analysis
+--
+-- Purpose:
+-- Reconstruct analytical sessions because the raw user_session
+-- field cannot be assumed to represent a reliable continuous
+-- browsing session.
+--
+-- Primary session rule:
+-- - Same user_id
+-- - Same raw user_session
+-- - Start a new analytical session when:
+--      1. inactivity gap >= 30 minutes, OR
+--      2. the calendar date changes
+--
+-- Stable ordering:
+-- source_event_id is used as a deterministic tie-breaker when
+-- multiple events share the same timestamp.
+-- ============================================================
+
+
+-- ------------------------------------------------------------
+-- 1. Clean analytical event base
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE TABLE events_clean AS
+
+SELECT
+    rowid AS source_event_id,
+
+    TRY_CAST(event_time AS TIMESTAMP) AS event_time_utc,
+
+    event_type,
+
+    CAST(product_id AS VARCHAR) AS product_id,
+    CAST(category_id AS VARCHAR) AS category_id,
+
+    NULLIF(TRIM(category_code), '') AS category_code,
+    NULLIF(TRIM(brand), '') AS brand,
+
+    TRY_CAST(price AS DOUBLE) AS price,
+
+    CAST(user_id AS VARCHAR) AS user_id,
+    CAST(user_session AS VARCHAR) AS user_session
+
+FROM raw_events
+
+WHERE user_id IS NOT NULL
+  AND user_session IS NOT NULL
+  AND TRY_CAST(event_time AS TIMESTAMP) IS NOT NULL;
+
+
+-- ------------------------------------------------------------
+-- 2. Compare each event with the previous event
+--    inside the same raw user session
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE TABLE event_gaps AS
+
+SELECT
+    *,
+
+    LAG(event_time_utc) OVER (
+        PARTITION BY user_id, user_session
+        ORDER BY event_time_utc, source_event_id
+    ) AS previous_event_time
+
+FROM events_clean;
+
+
+-- ------------------------------------------------------------
+-- 3. Flag where a new analytical session begins
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE TABLE event_session_flags AS
+
+SELECT
+    *,
+
+    CASE
+
+        -- First event in the raw user session
+        WHEN previous_event_time IS NULL
+            THEN 1
+
+        -- Force a new session across calendar dates
+        WHEN CAST(event_time_utc AS DATE)
+           <> CAST(previous_event_time AS DATE)
+            THEN 1
+
+        -- New session after 30+ minutes of inactivity
+        WHEN event_time_utc - previous_event_time
+             >= INTERVAL '30 minutes'
+            THEN 1
+
+        ELSE 0
+
+    END AS new_session_flag
+
+FROM event_gaps;
+
+
+-- ------------------------------------------------------------
+-- 4. Convert session-start flags into session numbers
+--
+-- Example:
+--
+-- event    flag    cumulative session number
+-- A        1       1
+-- B        0       1
+-- C        0       1
+-- D        1       2
+-- E        0       2
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE TABLE event_session_numbers AS
+
+SELECT
+    *,
+
+    SUM(new_session_flag) OVER (
+        PARTITION BY user_id, user_session
+        ORDER BY event_time_utc, source_event_id
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS analytical_session_number
+
+FROM event_session_flags;
+
+
+-- ------------------------------------------------------------
+-- 5. Create the final 30-minute analytical event table
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE TABLE analysis_events_30 AS
+
+SELECT
+    source_event_id,
+    event_time_utc,
+    event_type,
+    product_id,
+    category_id,
+    category_code,
+    brand,
+    price,
+    user_id,
+    user_session,
+
+    analytical_session_number,
+
+    CONCAT(
+        user_id,
+        '|',
+        user_session,
+        '|',
+        CAST(analytical_session_number AS VARCHAR)
+    ) AS analytical_session_id
+
+FROM event_session_numbers;
+
+
+-- ============================================================
+-- VALIDATION
+-- ============================================================
+
+
+-- ------------------------------------------------------------
+-- 6. Row count retained for session analysis
+-- ------------------------------------------------------------
+
+SELECT
+    COUNT(*) AS analysis_event_rows
+FROM analysis_events_30;
+
+-- Expected result:
+-- 884,964
+
+
+-- ------------------------------------------------------------
+-- 7. Final analytical session count
+-- ------------------------------------------------------------
+
+SELECT
+    COUNT(DISTINCT analytical_session_id)
+        AS analytical_sessions_30min
+FROM analysis_events_30;
+
+-- Expected result:
+-- 539,812
+
+
+-- ------------------------------------------------------------
+-- 8. Validate that no analytical session contains
+--    an internal inactivity gap >= 30 minutes
+-- ------------------------------------------------------------
+
+WITH internal_gaps AS (
+
+    SELECT
+        analytical_session_id,
+        event_time_utc,
+
+        LAG(event_time_utc) OVER (
+            PARTITION BY analytical_session_id
+            ORDER BY event_time_utc, source_event_id
+        ) AS previous_event_time
+
+    FROM analysis_events_30
+)
+
+SELECT
+    COUNT(*) FILTER (
+        WHERE previous_event_time IS NOT NULL
+          AND event_time_utc - previous_event_time
+              >= INTERVAL '30 minutes'
+    ) AS invalid_internal_gaps
+
+FROM internal_gaps;
+
+-- Expected result:
+-- 0
