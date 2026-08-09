@@ -4,6 +4,26 @@
 
 An end-to-end e-commerce analytics case study that transforms **885K raw customer events** into reliable session-level funnel metrics, identifies where conversion friction occurs, and prioritises categories for further investigation.
 
+## Dataset
+
+This project uses the **eCommerce Events History in Electronics Store** dataset.
+
+The raw dataset contains approximately **885K ecommerce events** covering:
+
+- `view`
+- `cart`
+- `purchase`
+
+Key fields include:
+
+`event_time`, `event_type`, `product_id`, `category_id`, `category_code`, `brand`, `price`, `user_id`, and `user_session`.
+
+The source data is event-level, where one row represents one observed user-product interaction rather than one customer, session or order.
+
+**Source:** [eCommerce events history in electronics store — Kaggle](https://www.kaggle.com/datasets/mkechinov/ecommerce-events-history-in-electronics-store)
+
+The raw dataset is not redistributed in this repository. The SQL scripts document the transformation from raw events to the analytical tables used in the case study.
+
 ## Business Question
 
 **How can an e-commerce business identify where funnel performance is improving, where meaningful friction remains, and which categories should be investigated first?**
