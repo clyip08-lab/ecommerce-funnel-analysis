@@ -88,3 +88,47 @@ The analysis followed six main stages:
 
 6. **Investigate possible drivers**  
    Analysed brand and price patterns for selected categories while keeping causal limitations explicit.
+
+   ---
+
+## Key Findings
+
+### Finding 1 — Overall purchase performance improved
+
+From October 2020 to February 2021:
+
+| Metric | Oct 2020 | Feb 2021 | Change |
+|---|---:|---:|---:|
+| Purchase-session rate | 4.19% | **5.30%** | +1.11 pp |
+| Ordered View-to-Cart | 6.83% | **9.09%** | +2.26 pp |
+| Ordered Cart-to-Purchase | 49.67% | **46.28%** | -3.39 pp |
+
+The improvement in purchase-session performance was primarily driven by stronger **View-to-Cart conversion**.
+
+At the same time, **Cart-to-Purchase weakened**, indicating that the downstream stage was moving in the opposite direction.
+
+This means the business should not interpret the overall improvement as evidence that every part of the funnel was improving.
+
+---
+
+### Finding 2 — Low absolute conversion did not always mean a category problem
+
+A key example was **computers.components.videocards**.
+
+Its Cart-to-Purchase rate was:
+
+**40.98%**
+
+Compared with the overall known-category benchmark of **46.77%**, this initially appeared weak.
+
+However, when compared with other categories in the same computer-components peer group, videocards performed:
+
+**+3.34 percentage points above peers**
+
+This changed the interpretation.
+
+A site-wide benchmark would have incorrectly flagged videocards as an underperforming category.
+
+The peer benchmark showed that its lower absolute conversion reflected broader category-family behaviour rather than a category-specific problem.
+
+![Category Diagnosis](images/category_diagnosis.png)
