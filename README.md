@@ -200,3 +200,84 @@ to:
 These opportunity estimates are **mathematical prioritisation gaps**, not forecasts of guaranteed incremental carts or purchases.
 
 A separate directional signal was retained for TV, where the estimated gaps were large but peer sample sizes were below the reliability thresholds.
+---
+
+## Driver Deep Dive — Price and Brand Signals
+
+After identifying category-level gaps, I investigated whether product price and brand patterns could help explain selected opportunities.
+
+TV and Monitor were chosen for deeper analysis because they had relatively strong driver-level data coverage compared with other priority categories.
+
+### Price signals
+
+Products were grouped into broader price bands for a more stable comparison:
+
+- Lower half: `<= P50`
+- Upper half: `P50–P99`
+
+Extreme prices above P99 were retained for review but excluded from the main comparison because of limited sessions and potential price anomalies.
+
+#### TV
+
+| Funnel stage | Lower-price half | Upper-price half | Difference |
+|---|---:|---:|---:|
+| View→Cart | **4.62%** | **1.01%** | -3.61 pp |
+| Cart→Purchase | **37.43%** | **31.58%** | -5.85 pp |
+
+The strongest signal appeared in TV View-to-Cart, where higher-priced products converted substantially less often than lower-priced products.
+
+#### Monitor
+
+| Funnel stage | Lower-price half | Upper-price half | Difference |
+|---|---:|---:|---:|
+| View→Cart | **8.60%** | **6.34%** | -2.26 pp |
+| Cart→Purchase | **38.56%** | **33.54%** | -5.02 pp |
+
+Monitor showed weaker conversion in the higher-price group at both funnel stages.
+
+However, these results show **association rather than causation**.
+
+Higher price may also correlate with:
+
+- product specifications
+- brand mix
+- customer intent
+- inventory availability
+- promotions
+- shipping conditions
+
+For this reason, the analysis does not conclude that price directly caused the conversion gaps.
+
+---
+
+### Brand signals
+
+Brand-level peer comparisons provided additional investigation signals.
+
+Examples included:
+
+- **LG TV View→Cart:** 0.89% vs **4.35%** peer rate
+- **Philips Monitor Cart→Purchase:** 32.14% vs **42.53%** peer rate
+
+Selected brands underperformed comparable brands within the same category, but brand differences explained only part of the overall category-level opportunity.
+
+The available data was not sufficient to determine whether the observed differences were driven by the brand itself or by associated factors such as product mix, price, inventory or customer preferences.
+
+![Driver Deep Dive](images/driver_deep_dive.png)
+
+---
+
+### Evidence boundary
+
+**Confirmed from the available data:**
+
+- Higher-price groups were associated with weaker conversion in TV and Monitor.
+- Selected brands showed measurable gaps versus category peers.
+
+**Not confirmed:**
+
+- Price directly caused the conversion gaps.
+- Brand directly caused the conversion gaps.
+- A specific operational or product issue was the root cause.
+
+Additional data would be required to test these hypotheses reliably.
