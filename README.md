@@ -89,7 +89,7 @@ The analysis followed six main stages:
 6. **Investigate possible drivers**  
    Analysed brand and price patterns for selected categories while keeping causal limitations explicit.
 
-   ---
+---
 
 ## Key Findings
 
@@ -132,3 +132,71 @@ A site-wide benchmark would have incorrectly flagged videocards as an underperfo
 The peer benchmark showed that its lower absolute conversion reflected broader category-family behaviour rather than a category-specific problem.
 
 ![Category Diagnosis](images/category_diagnosis.png)
+---
+
+### Finding 3 — Different categories showed friction at different funnel stages
+
+Peer-relative performance showed that category problems were not uniform.
+
+| Category | View→Cart vs peers | Cart→Purchase vs peers | Diagnosis |
+|---|---:|---:|---|
+| Cooler | **-9.86 pp** | -6.01 pp | Strong front-funnel and downstream weakness |
+| Monitor | -1.70 pp | **-13.85 pp** | Mainly downstream weakness |
+| CPU | -1.98 pp | **-5.91 pp** | High downstream investigation priority |
+| Drill | +0.15 pp | **-7.84 pp** | Downstream-specific weakness |
+| Videocards | +7.50 pp | +3.34 pp | Above peers at both stages |
+
+This showed that a single site-wide “conversion optimisation” strategy would not be appropriate.
+
+For example:
+
+- **Cooler** showed a particularly large View-to-Cart gap and also weaker downstream performance.
+- **Monitor** was much closer to peers at View-to-Cart, but showed a much larger Cart-to-Purchase gap.
+- **Drill** performed approximately in line with peers at View-to-Cart, while underperforming downstream.
+- **Videocards** provided a useful positive reference because it outperformed its peer group at both stages.
+
+The appropriate investigation therefore depends on **where in the funnel the category diverges from comparable peers**.
+
+---
+
+### Finding 4 — Business priority depended on both conversion gap and volume
+
+Ranking categories by conversion rate alone can over-prioritise small categories with unstable or commercially limited impact.
+
+I therefore combined:
+
+**denominator volume × performance gap versus peers**
+
+to estimate the size of the observed opportunity gap.
+
+#### Largest reliable View-to-Cart opportunity gaps
+
+| Category | Estimated cart-session gap |
+|---|---:|
+| Cooler | **609** |
+| Motherboard | 406 |
+| CPU | 291 |
+| HDD | 175 |
+| Mouse | 166 |
+
+#### Largest reliable Cart-to-Purchase opportunity gaps
+
+| Category | Estimated purchase-session gap |
+|---|---:|
+| CPU | **120** |
+| Monitor | 49 |
+| Acoustic audio | 44 |
+| Drill | 26 |
+| Videoregister | 24 |
+
+This shifted the analysis from:
+
+> “Which category has the lowest conversion rate?”
+
+to:
+
+> “Which category combines a meaningful performance gap with enough customer volume to justify investigation?”
+
+These opportunity estimates are **mathematical prioritisation gaps**, not forecasts of guaranteed incremental carts or purchases.
+
+A separate directional signal was retained for TV, where the estimated gaps were large but peer sample sizes were below the reliability thresholds.
