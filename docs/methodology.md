@@ -44,9 +44,12 @@ Analytical sessions were reconstructed using:
 
 A new analytical session begins when:
 
-1. the event is the first event for that user-session combination;
-2. the calendar date changes; or
-3. the inactivity gap is **30 minutes or more**.
+1. the event is the first event for that `user_id + original user_session` combination; or
+2. the inactivity gap from the previous event **exceeds 30 minutes**.
+
+Events separated by **30 minutes or less** remain in the same analytical session.
+
+Crossing midnight alone does not force a new session because the analysis is intended to represent continuous browsing behaviour rather than calendar-day activity.
 
 The primary 30-minute rule produced:
 
@@ -56,15 +59,17 @@ The primary 30-minute rule produced:
 
 When multiple events share the same timestamp, event ordering can become unstable if SQL has no secondary sort key.
 
-A stable `source_event_id` was therefore retained and window functions use:
+A stable `source_event_id` was therefore retained and relevant window functions use:
 
 `ORDER BY event_time_utc, source_event_id`
 
-This ensures reproducible event ordering.
+This ensures deterministic and reproducible technical ordering when timestamps are tied.
+
+However, `source_event_id` is only a technical tie-breaker. It is **not treated as evidence of the true behavioural order of events occurring within the same recorded second**.
 
 ### Sensitivity test
 
-The same logic was repeated using a **60-minute inactivity threshold**.
+The same sessionisation logic was repeated using a **60-minute inactivity threshold**, where a new session begins only when inactivity **exceeds 60 minutes**.
 
 | Session rule | Sessions |
 |---|---:|
@@ -117,27 +122,31 @@ All three event types are present, but this does not represent an observed:
 
 sequence.
 
-Event sequence was therefore used to define ordered funnel progression.
+Funnel progression is therefore evaluated using the **earliest observed timestamp** for each funnel stage.
+
+Because the source timestamps have second-level precision only, transitions recorded within the same second cannot be reliably ordered further. Same-second transitions are therefore retained as compatible with funnel progression.
 
 ### Ordered View-to-Cart
 
-A session is counted when:
+A session is counted when both stages are observed and:
 
-`first_view_sequence < first_cart_sequence`
+`first_view_time <= first_cart_time`
 
 ### Ordered Cart-to-Purchase
 
-A session is counted when:
+A session is counted when both stages are observed and:
 
-`first_cart_sequence < first_purchase_sequence`
+`first_cart_time <= first_purchase_time`
 
 ### Complete ordered funnel
 
 A session is counted when:
 
-`first_view_sequence < first_cart_sequence < first_purchase_sequence`
+`first_view_time <= first_cart_time <= first_purchase_time`
 
-This produces more conservative funnel metrics than simple event co-occurrence.
+A same-second transition does not prove that the earlier funnel stage occurred first. It means that the available timestamp resolution cannot establish a conflicting order.
+
+In the source data, 50 sessions had the same earliest View and Cart timestamp, while 1 session had the same earliest Cart and Purchase timestamp.
 
 ---
 
@@ -182,7 +191,9 @@ Direct trend comparisons therefore use the full-month period:
 | Ordered View-to-Cart | 6.83% | 9.09% | +2.26 pp |
 | Ordered Cart-to-Purchase | 49.67% | 46.28% | -3.39 pp |
 
-The trend shows that overall purchase-session performance improved while downstream Cart-to-Purchase completion weakened.
+The trend shows that overall purchase-session performance improved from October to February. Over the same period, observed View-to-Cart progression strengthened substantially, while Cart-to-Purchase progression weakened.
+
+These movements are descriptive associations and should not be interpreted as proof that the stronger View-to-Cart rate caused the higher purchase-session rate.
 
 ---
 
@@ -284,8 +295,13 @@ Practical sample thresholds were therefore applied before treating comparisons a
 | Brand View-to-Cart | 150 viewing sessions |
 | Brand Cart-to-Purchase | 30 cart sessions |
 
-The category thresholds were based on observed denominator distributions.
+The category thresholds were derived from the stage-specific denominator distributions.
 
+For View-to-Cart, the continuous 75th percentile of positive category viewing-session denominators was **2,642.5**, which was rounded upward to **2,643 viewing sessions**.
+
+For Cart-to-Purchase, categories with zero Cart sessions were excluded because they do not have a usable Cart-to-Purchase denominator. The continuous 75th percentile among positive Cart denominators was **195.5**, rounded upward to **196 cart sessions**.
+
+The brand thresholds of 150 viewing sessions and 30 cart sessions were used as practical minimum-volume filters for the deeper brand analysis.
 These thresholds are:
 
 **practical stability rules**
@@ -320,9 +336,13 @@ the mathematical opportunity gap would be approximately:
 
 `6,000 × (10% − 5%) = 300`
 
-This should be interpreted as an estimated gap used for prioritisation.
+This should be interpreted as a **mathematical peer-relative gap used for prioritisation**.
 
-It is **not** a forecast that 300 additional carts will definitely be generated.
+It answers:
+
+**How large is the observed performance gap when expressed in session-volume terms?**
+
+It does not predict that the calculated number of additional carts or purchases will actually be generated in the future.
 
 Reliable and directional results are kept separate when peer sample sizes differ in quality.
 
@@ -334,8 +354,7 @@ Brand analysis uses the grain:
 
 **session + category + brand**
 
-Missing brand values are retained as an explicit unknown group during profiling.
-
+Missing brand values are quantified during data-quality profiling but excluded from named-brand peer comparisons.
 Brand completeness differed substantially across priority categories:
 
 | Category | Missing-brand rate |
@@ -352,7 +371,7 @@ CPU had excellent brand completeness but only two eligible brands at the require
 
 After excluding the target brand, only one eligible peer remained.
 
-CPU was therefore not used for the final brand-attribution deep dive despite being an important category-level opportunity.
+CPU was therefore not used for the final brand-comparison deep dive despite being an important category-level opportunity.
 
 This illustrates an important distinction:
 
@@ -362,9 +381,10 @@ This illustrates an important distinction:
 
 ## 13. Price Analysis
 
-Price analysis uses:
+Price analysis uses two analytical grains:
 
-**session + product**
+1. **product-level price grain** to define category-specific price thresholds and assign each product to a price band;
+2. **session + category + price-band grain** to calculate funnel performance.
 
 The selected categories for the final price deep dive were TV and Monitor.
 
@@ -378,9 +398,13 @@ It can only compare conversion patterns between different product price groups.
 
 Product-level price percentiles were used:
 
-- Lower half: `<= P50`
-- Upper half: `P50–P99`
-- Extreme: `> P99`
+- Lower: `price <= P50`
+- Upper: `P50 < price <= P99`
+- Extreme: `price > P99`
+
+Price thresholds were calculated at **product level rather than event-row level** so that frequently viewed products did not receive disproportionate weight in the price distribution.
+
+For example, the TV event-level median price was 191.67, while the product-level median was 300.56, demonstrating how event frequency can materially change the observed price distribution.
 
 The extreme group is retained for transparency but excluded from the primary visual comparison because of very small samples and potential price anomalies.
 
@@ -439,6 +463,7 @@ and:
 
 Price and brand findings are treated as investigation signals rather than causal explanations.
 
+The project therefore uses the term **driver deep dive** as a structured hypothesis-narrowing exercise rather than as proof of causal drivers.
 ---
 
 ## 15. Power BI Semantic Layer
