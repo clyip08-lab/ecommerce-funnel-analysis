@@ -313,9 +313,27 @@ FROM statistics
 
 UNION ALL
 
--- Practical sample thresholds.
--- These are analytical rules chosen earlier in the project,
--- not statistical-significance cut-offs.
+-- ------------------------------------------------------------
+-- Practical sample-size thresholds
+--
+-- Category thresholds are derived from the stage-specific
+-- positive denominator distributions:
+--
+-- View-to-Cart:
+-- continuous P75 of positive viewing-session denominators
+-- = 2642.5, rounded upward to 2643.
+--
+-- Cart-to-Purchase:
+-- continuous P75 of positive cart-session denominators
+-- = 195.5, rounded upward to 196.
+--
+-- Brand thresholds (150 viewing sessions / 30 cart sessions)
+-- are practical minimum-volume filters used for the deeper
+-- brand analysis.
+--
+-- These thresholds are practical stability rules, not
+-- statistical-significance cut-offs or performance targets.
+-- ------------------------------------------------------------
 
 SELECT
     15,
