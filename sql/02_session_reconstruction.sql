@@ -1,22 +1,20 @@
 -- ============================================================
 -- 02_session_reconstruction.sql
--- E-commerce Funnel Analysis
 --
 -- Purpose:
--- Reconstruct analytical sessions because the raw user_session
--- field cannot be assumed to represent a reliable continuous
--- browsing session.
+-- Reconstruct analytical browsing sessions from the raw
+-- user_session field.
 --
--- Primary session rule:
--- - Same user_id
--- - Same raw user_session
--- - Start a new analytical session when:
---      1. inactivity gap >= 30 minutes, OR
---      2. the calendar date changes
+-- Primary definition:
+-- Within each user_id + raw user_session pair, events remain
+-- in the same analytical session when inactivity is 30 minutes
+-- or less. A new analytical session begins only when inactivity
+-- exceeds 30 minutes.
 --
--- Stable ordering:
--- source_event_id is used as a deterministic tie-breaker when
--- multiple events share the same timestamp.
+-- Crossing midnight alone does not force a new session.
+--
+-- A 60-minute inactivity threshold is also reconstructed as a
+-- sensitivity check.
 -- ============================================================
 
 
@@ -79,24 +77,15 @@ SELECT
     *,
 
     CASE
+    WHEN previous_event_time IS NULL
+        THEN 1
 
-        -- First event in the raw user session
-        WHEN previous_event_time IS NULL
-            THEN 1
+    WHEN event_time_utc - previous_event_time
+         > INTERVAL '30 minutes'
+        THEN 1
 
-        -- Force a new session across calendar dates
-        WHEN CAST(event_time_utc AS DATE)
-           <> CAST(previous_event_time AS DATE)
-            THEN 1
-
-        -- New session after 30+ minutes of inactivity
-        WHEN event_time_utc - previous_event_time
-             >= INTERVAL '30 minutes'
-            THEN 1
-
-        ELSE 0
-
-    END AS new_session_flag
+    ELSE 0
+END AS new_session_flag
 
 FROM event_gaps;
 
@@ -181,12 +170,8 @@ WITH session_flags_60 AS (
             WHEN previous_event_time IS NULL
                 THEN 1
 
-            WHEN CAST(event_time_utc AS DATE)
-               <> CAST(previous_event_time AS DATE)
-                THEN 1
-
             WHEN event_time_utc - previous_event_time
-                 >= INTERVAL '60 minutes'
+                 > INTERVAL '60 minutes'
                 THEN 1
 
             ELSE 0
@@ -306,3 +291,22 @@ FROM internal_gaps;
 
 -- Expected result:
 -- 0
+-- ============================================================
+-- Validation checks
+-- ============================================================
+
+
+-- Primary 30-minute session definition
+SELECT
+    COUNT(*) AS analysis_event_rows,
+    COUNT(DISTINCT analytical_session_id)
+        AS analytical_sessions_30min
+FROM analysis_events_30;
+
+
+-- 60-minute sensitivity definition
+SELECT
+    COUNT(*) AS analysis_event_rows,
+    COUNT(DISTINCT analytical_session_id)
+        AS analytical_sessions_60min
+FROM analysis_events_60;
