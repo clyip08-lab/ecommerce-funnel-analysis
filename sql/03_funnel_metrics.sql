@@ -1,44 +1,27 @@
 -- ============================================================
 -- 03_funnel_metrics.sql
--- E-commerce Funnel Analysis
 --
 -- Purpose:
--- Convert reconstructed analytical sessions into session-level
--- funnel metrics.
+-- Build session-level funnel metrics using the reconstructed
+-- 30-minute analytical sessions.
 --
--- Funnel stages:
--- View → Cart → Purchase
+-- Funnel progression is evaluated using the earliest observed
+-- timestamp for each stage.
 --
--- Important:
--- Funnel metrics are calculated at SESSION level, not by
--- dividing raw event-row counts.
+-- A transition is retained when the next-stage timestamp is
+-- equal to or later than the previous-stage timestamp.
+--
+-- Same-second transitions are retained because the source
+-- timestamps have second-level precision only.
 -- ============================================================
 
 
 -- ------------------------------------------------------------
--- 1. Assign a deterministic event sequence inside each session
--- ------------------------------------------------------------
-
-CREATE OR REPLACE TABLE session_event_sequence_30 AS
-
-SELECT
-    *,
-
-    ROW_NUMBER() OVER (
-        PARTITION BY analytical_session_id
-        ORDER BY event_time_utc, source_event_id
-    ) AS event_sequence
-
-FROM analysis_events_30;
-
-
--- ------------------------------------------------------------
--- 2. Summarise each analytical session
+-- 1. Summarise each analytical session
 --
 -- MAX(CASE WHEN...) creates session-level event-presence flags.
---
--- MIN(event_sequence) records where the first observed
--- view, cart and purchase occurred inside each session.
+-- MIN(CASE WHEN...event_time_utc) records the earliest observed
+-- timestamp for View, Cart and Purchase within each session.
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE session_summary_30 AS
@@ -49,51 +32,50 @@ SELECT
     MIN(event_time_utc) AS session_start_time,
     MAX(event_time_utc) AS session_end_time,
 
-    MAX(CASE
-        WHEN event_type = 'view'
-        THEN 1 ELSE 0
-    END) AS has_view,
+    MAX(
+        CASE WHEN event_type = 'view'
+        THEN 1 ELSE 0 END
+    ) AS has_view,
 
-    MAX(CASE
-        WHEN event_type = 'cart'
-        THEN 1 ELSE 0
-    END) AS has_cart,
+    MAX(
+        CASE WHEN event_type = 'cart'
+        THEN 1 ELSE 0 END
+    ) AS has_cart,
 
-    MAX(CASE
-        WHEN event_type = 'purchase'
-        THEN 1 ELSE 0
-    END) AS has_purchase,
+    MAX(
+        CASE WHEN event_type = 'purchase'
+        THEN 1 ELSE 0 END
+    ) AS has_purchase,
 
-    MIN(CASE
-        WHEN event_type = 'view'
-        THEN event_sequence
-    END) AS first_view_sequence,
+    MIN(
+        CASE WHEN event_type = 'view'
+        THEN event_time_utc END
+    ) AS first_view_time,
 
-    MIN(CASE
-        WHEN event_type = 'cart'
-        THEN event_sequence
-    END) AS first_cart_sequence,
+    MIN(
+        CASE WHEN event_type = 'cart'
+        THEN event_time_utc END
+    ) AS first_cart_time,
 
-    MIN(CASE
-        WHEN event_type = 'purchase'
-        THEN event_sequence
-    END) AS first_purchase_sequence
+    MIN(
+        CASE WHEN event_type = 'purchase'
+        THEN event_time_utc END
+    ) AS first_purchase_time
 
-FROM session_event_sequence_30
+FROM analysis_events_30
 
 GROUP BY analytical_session_id;
 
 
 -- ------------------------------------------------------------
--- 3. Build ordered funnel flags
+-- 2. Build ordered funnel flags
 --
--- Event presence alone is not enough.
+-- Event presence alone is not enough to establish funnel
+-- progression. The earliest observed stage timestamps must also
+-- be compatible with the expected View → Cart → Purchase order.
 --
--- Example:
--- Purchase → View → Cart
---
--- contains all three event types, but is not counted as an
--- observed View → Cart → Purchase sequence.
+-- Same-second transitions are retained because the source data
+-- does not provide sub-second timestamp precision.
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE session_funnel_30 AS
@@ -102,25 +84,25 @@ SELECT
     *,
 
     CASE
-        WHEN first_view_sequence IS NOT NULL
-         AND first_cart_sequence IS NOT NULL
-         AND first_view_sequence < first_cart_sequence
+        WHEN first_view_time IS NOT NULL
+         AND first_cart_time IS NOT NULL
+         AND first_view_time <= first_cart_time
         THEN 1 ELSE 0
     END AS ordered_view_to_cart,
 
     CASE
-        WHEN first_cart_sequence IS NOT NULL
-         AND first_purchase_sequence IS NOT NULL
-         AND first_cart_sequence < first_purchase_sequence
+        WHEN first_cart_time IS NOT NULL
+         AND first_purchase_time IS NOT NULL
+         AND first_cart_time <= first_purchase_time
         THEN 1 ELSE 0
     END AS ordered_cart_to_purchase,
 
     CASE
-        WHEN first_view_sequence IS NOT NULL
-         AND first_cart_sequence IS NOT NULL
-         AND first_purchase_sequence IS NOT NULL
-         AND first_view_sequence < first_cart_sequence
-         AND first_cart_sequence < first_purchase_sequence
+        WHEN first_view_time IS NOT NULL
+         AND first_cart_time IS NOT NULL
+         AND first_purchase_time IS NOT NULL
+         AND first_view_time <= first_cart_time
+         AND first_cart_time <= first_purchase_time
         THEN 1 ELSE 0
     END AS complete_ordered_funnel
 
@@ -133,7 +115,7 @@ FROM session_summary_30;
 
 
 -- ------------------------------------------------------------
--- 4. Session-level funnel counts
+-- 3. Session-level funnel counts
 -- ------------------------------------------------------------
 
 SELECT
@@ -170,7 +152,7 @@ complete_ordered_funnel_sessions     20,575
 
 
 -- ------------------------------------------------------------
--- 5. Final dashboard funnel rates
+-- 4. Final dashboard funnel rates
 -- ------------------------------------------------------------
 
 SELECT
@@ -215,9 +197,11 @@ Complete Ordered Funnel Rate          3.83%
 
 
 -- ------------------------------------------------------------
--- 6. Compare simple event co-occurrence with ordered progression
+-- 5. Compare event co-occurrence with ordered progression
 --
--- This shows why event sequence matters.
+-- This shows why event presence alone is insufficient.
+-- Funnel progression also considers the relative timing of the
+-- earliest observed stage timestamps.
 -- ------------------------------------------------------------
 
 SELECT
@@ -264,4 +248,29 @@ Ordered Cart → Purchase             21,022
 
 All three events                    20,962
 Ordered View → Cart → Purchase      20,575
+*/
+-- ============================================================
+-- 6. Timestamp precision diagnostic
+-- ============================================================
+
+SELECT
+    COUNT(*) FILTER (
+        WHERE first_view_time IS NOT NULL
+          AND first_cart_time IS NOT NULL
+          AND first_view_time = first_cart_time
+    ) AS view_cart_same_second_sessions,
+
+    COUNT(*) FILTER (
+        WHERE first_cart_time IS NOT NULL
+          AND first_purchase_time IS NOT NULL
+          AND first_cart_time = first_purchase_time
+    ) AS cart_purchase_same_second_sessions
+
+FROM session_summary_30;
+
+/*
+Expected results:
+
+View–Cart same-second sessions         50
+Cart–Purchase same-second sessions      1
 */
