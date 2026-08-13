@@ -381,10 +381,11 @@ This illustrates an important distinction:
 
 ## 13. Price Analysis
 
-Price analysis uses two analytical grains:
+Price analysis uses three related grains:
 
-1. **product-level price grain** to define category-specific price thresholds and assign each product to a price band;
-2. **session + category + price-band grain** to calculate funnel performance.
+1. **product-level grain** to validate price stability, calculate category-specific price thresholds and assign products to price bands;
+2. **session + product grain** to evaluate funnel progression for individual products without combining behaviour across different products;
+3. **category + funnel stage + price-band grain** for the final Power BI semantic output.
 
 The selected categories for the final price deep dive were TV and Monitor.
 
