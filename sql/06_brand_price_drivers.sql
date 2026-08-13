@@ -88,16 +88,17 @@ priority categories.
 
 
 -- ------------------------------------------------------------
--- 2. Create session + category + brand event sequence
+-- 2. Prepare session + category + brand events
 --
--- Brand analysis uses a new grain:
+-- Brand analysis uses:
 --
 -- session + category + brand
 --
--- rather than raw event rows.
+-- Raw source-row order is not used to infer behavioural order.
+-- Funnel progression is evaluated using stage timestamps.
 -- ------------------------------------------------------------
 
-CREATE OR REPLACE TABLE category_brand_event_sequence_30 AS
+CREATE OR REPLACE TABLE category_brand_events_30 AS
 
 SELECT
     analytical_session_id,
@@ -109,21 +110,7 @@ SELECT
     ) AS brand_group,
 
     event_type,
-    event_time_utc,
-    source_event_id,
-
-    ROW_NUMBER() OVER (
-        PARTITION BY
-            analytical_session_id,
-            category_code,
-            COALESCE(
-                NULLIF(LOWER(TRIM(brand)), ''),
-                'unknown / missing'
-            )
-        ORDER BY
-            event_time_utc,
-            source_event_id
-    ) AS brand_event_sequence
+    event_time_utc
 
 FROM analysis_events_30
 
@@ -136,7 +123,6 @@ WHERE category_code IN (
 );
 
 
--- ------------------------------------------------------------
 -- 3. Collapse to one row per session + category + brand
 -- ------------------------------------------------------------
 
@@ -164,20 +150,20 @@ SELECT
 
     MIN(CASE
         WHEN event_type = 'view'
-        THEN brand_event_sequence
-    END) AS first_view_sequence,
+        THEN event_time_utc
+    END) AS first_view_time,
 
     MIN(CASE
         WHEN event_type = 'cart'
-        THEN brand_event_sequence
-    END) AS first_cart_sequence,
+        THEN event_time_utc
+    END) AS first_cart_time,
 
     MIN(CASE
         WHEN event_type = 'purchase'
-        THEN brand_event_sequence
-    END) AS first_purchase_sequence
+        THEN event_time_utc
+    END) AS first_purchase_time
 
-FROM category_brand_event_sequence_30
+FROM category_brand_events_30
 
 GROUP BY
     analytical_session_id,
@@ -193,8 +179,10 @@ represented analytical sessions     42,867
 */
 
 
--- ------------------------------------------------------------
 -- 4. Calculate brand-level ordered funnel performance
+--
+-- Same-second stage transitions are retained because source
+-- timestamps have second-level precision only.
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE category_brand_performance_30 AS
@@ -209,18 +197,18 @@ SELECT
 
     SUM(
         CASE
-            WHEN first_view_sequence IS NOT NULL
-             AND first_cart_sequence IS NOT NULL
-             AND first_view_sequence < first_cart_sequence
+            WHEN first_view_time IS NOT NULL
+             AND first_cart_time IS NOT NULL
+             AND first_view_time <= first_cart_time
             THEN 1 ELSE 0
         END
     ) AS ordered_view_to_cart_sessions,
 
     SUM(
         CASE
-            WHEN first_cart_sequence IS NOT NULL
-             AND first_purchase_sequence IS NOT NULL
-             AND first_cart_sequence < first_purchase_sequence
+            WHEN first_cart_time IS NOT NULL
+             AND first_purchase_time IS NOT NULL
+             AND first_cart_time <= first_purchase_time
             THEN 1 ELSE 0
         END
     ) AS ordered_cart_to_purchase_sessions,
@@ -228,24 +216,24 @@ SELECT
     100.0
     * SUM(
         CASE
-            WHEN first_view_sequence IS NOT NULL
-             AND first_cart_sequence IS NOT NULL
-             AND first_view_sequence < first_cart_sequence
+            WHEN first_view_time IS NOT NULL
+             AND first_cart_time IS NOT NULL
+             AND first_view_time <= first_cart_time
             THEN 1 ELSE 0
         END
-      )
+    )
     / NULLIF(SUM(has_view), 0)
         AS view_to_cart_rate_pct,
 
     100.0
     * SUM(
         CASE
-            WHEN first_cart_sequence IS NOT NULL
-             AND first_purchase_sequence IS NOT NULL
-             AND first_cart_sequence < first_purchase_sequence
+            WHEN first_cart_time IS NOT NULL
+             AND first_purchase_time IS NOT NULL
+             AND first_cart_time <= first_purchase_time
             THEN 1 ELSE 0
         END
-      )
+    )
     / NULLIF(SUM(has_cart), 0)
         AS cart_to_purchase_rate_pct
 
@@ -257,6 +245,25 @@ GROUP BY
 
 
 -- ------------------------------------------------------------
+-- Brand timestamp-precision diagnostic
+-- ------------------------------------------------------------
+
+SELECT
+    COUNT(*) FILTER (
+        WHERE first_view_time IS NOT NULL
+          AND first_cart_time IS NOT NULL
+          AND first_view_time = first_cart_time
+    ) AS brand_view_cart_same_second,
+
+    COUNT(*) FILTER (
+        WHERE first_cart_time IS NOT NULL
+          AND first_purchase_time IS NOT NULL
+          AND first_cart_time = first_purchase_time
+    ) AS brand_cart_purchase_same_second
+
+FROM session_category_brand_summary_30;
+
+
 -- 5. Review practical brand sample coverage
 --
 -- Thresholds:
@@ -426,7 +433,7 @@ GROUP BY
 
 
 -- ------------------------------------------------------------
--- 10. Why CPU was NOT used for final brand attribution
+-- 10. Why CPU was NOT used for final brand comparison
 --
 -- CPU had good brand completeness, but only two eligible
 -- brands remained at each funnel stage.
@@ -691,17 +698,19 @@ ORDER BY
 
 
 -- ------------------------------------------------------------
--- 16. Sequence events within session + product
+-- 16. Prepare events within session + product
 --
--- Price analysis uses:
+-- Price funnel analysis uses:
 --
 -- session + product
 --
--- because the question is whether product price groups show
--- different funnel behaviour.
+-- because price is a product attribute and progression should
+-- not be inferred across different products in the same band.
+--
+-- Source-row order is not used as behavioural evidence.
 -- ------------------------------------------------------------
 
-CREATE OR REPLACE TABLE driver_product_event_sequence_30 AS
+CREATE OR REPLACE TABLE driver_product_events_30 AS
 
 SELECT
     e.analytical_session_id,
@@ -710,23 +719,11 @@ SELECT
     p.product_price,
 
     e.event_type,
-    e.event_time_utc,
-    e.source_event_id,
-
-    ROW_NUMBER() OVER (
-        PARTITION BY
-            e.analytical_session_id,
-            e.category_code,
-            e.product_id
-        ORDER BY
-            e.event_time_utc,
-            e.source_event_id
-    ) AS product_event_sequence
+    e.event_time_utc
 
 FROM analysis_events_30 AS e
 
 JOIN driver_product_price_30 AS p
-
     ON e.category_code = p.category_code
    AND e.product_id = p.product_id
 
@@ -736,7 +733,6 @@ WHERE e.category_code IN (
 );
 
 
--- ------------------------------------------------------------
 -- 17. Collapse to one row per session + product
 -- ------------------------------------------------------------
 
@@ -758,22 +754,27 @@ SELECT
         THEN 1 ELSE 0
     END) AS has_cart,
 
+    MAX(CASE
+        WHEN event_type = 'purchase'
+        THEN 1 ELSE 0
+    END) AS has_purchase,
+
     MIN(CASE
         WHEN event_type = 'view'
-        THEN product_event_sequence
-    END) AS first_view_sequence,
+        THEN event_time_utc
+    END) AS first_view_time,
 
     MIN(CASE
         WHEN event_type = 'cart'
-        THEN product_event_sequence
-    END) AS first_cart_sequence,
+        THEN event_time_utc
+    END) AS first_cart_time,
 
     MIN(CASE
         WHEN event_type = 'purchase'
-        THEN product_event_sequence
-    END) AS first_purchase_sequence
+        THEN event_time_utc
+    END) AS first_purchase_time
 
-FROM driver_product_event_sequence_30
+FROM driver_product_events_30
 
 GROUP BY
     analytical_session_id,
@@ -782,7 +783,6 @@ GROUP BY
     product_price;
 
 
--- ------------------------------------------------------------
 -- 18. Assign products to price bands
 -- ------------------------------------------------------------
 
@@ -799,7 +799,6 @@ SELECT
             THEN '2. Upper half: P50-P99'
 
         ELSE '3. Extreme: >P99'
-
     END AS price_band,
 
     CASE
@@ -809,16 +808,16 @@ SELECT
     END AS include_main_comparison,
 
     CASE
-        WHEN first_view_sequence IS NOT NULL
-         AND first_cart_sequence IS NOT NULL
-         AND first_view_sequence < first_cart_sequence
+        WHEN first_view_time IS NOT NULL
+         AND first_cart_time IS NOT NULL
+         AND first_view_time <= first_cart_time
         THEN 1 ELSE 0
     END AS ordered_view_to_cart,
 
     CASE
-        WHEN first_cart_sequence IS NOT NULL
-         AND first_purchase_sequence IS NOT NULL
-         AND first_cart_sequence < first_purchase_sequence
+        WHEN first_cart_time IS NOT NULL
+         AND first_purchase_time IS NOT NULL
+         AND first_cart_time <= first_purchase_time
         THEN 1 ELSE 0
     END AS ordered_cart_to_purchase
 
@@ -826,6 +825,26 @@ FROM session_product_funnel_30 AS s
 
 JOIN driver_price_threshold_30 AS t
     ON s.category_code = t.category_code;
+
+
+-- ------------------------------------------------------------
+-- Price funnel timestamp-precision diagnostic
+-- ------------------------------------------------------------
+
+SELECT
+    COUNT(*) FILTER (
+        WHERE first_view_time IS NOT NULL
+          AND first_cart_time IS NOT NULL
+          AND first_view_time = first_cart_time
+    ) AS product_view_cart_same_second,
+
+    COUNT(*) FILTER (
+        WHERE first_cart_time IS NOT NULL
+          AND first_purchase_time IS NOT NULL
+          AND first_cart_time = first_purchase_time
+    ) AS product_cart_purchase_same_second
+
+FROM session_product_funnel_30;
 
 
 -- ============================================================
