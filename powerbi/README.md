@@ -73,7 +73,7 @@ A dual-axis chart was also avoided because two different scales can make unrelat
 
 Horizontal bars were used for the category opportunity rankings because the question is:
 
-**Which categories have the largest estimated gaps?**
+**Which categories have the largest mathematical prioritisation gaps?**
 
 Bar length makes magnitude easy to compare, while horizontal orientation leaves enough space for longer category names.
 
@@ -83,7 +83,7 @@ The charts therefore function as a prioritisation view rather than a complete ca
 
 ### Why separate the TV signal?
 
-TV showed a large estimated opportunity gap, but the peer sample was below the reliability threshold.
+TV showed a large mathematical opportunity gap, but the peer sample was below the reliability threshold.
 
 Instead of mixing TV into the reliable Top 5 ranking, it was presented as a separate directional callout.
 
@@ -97,7 +97,7 @@ This preserves a potentially important signal without presenting weaker evidence
 
 The second page answers:
 
-**Which funnel stage is responsible for each category's underperformance?**
+**At which funnel stage is each category underperforming?**
 
 A scatter plot was selected because each category has two independent peer-relative performance dimensions:
 
