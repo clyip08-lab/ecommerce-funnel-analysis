@@ -22,7 +22,7 @@ From October 2020 to February 2021:
 | Ordered View-to-Cart | 6.83% | **9.09%** | +2.26 pp |
 | Ordered Cart-to-Purchase | 49.67% | **46.28%** | -3.39 pp |
 
-**Main takeaway:** overall purchase-session performance improved, primarily because stronger View-to-Cart performance outweighed weakening downstream Cart-to-Purchase completion.
+**Main takeaway:** overall purchase-session performance improved alongside substantially stronger View-to-Cart progression, despite weaker downstream Cart-to-Purchase progression.
 
 The analysis then used **leave-one-out category peer benchmarks** and denominator volume to identify which categories represented meaningful investigation opportunities.
 
@@ -46,7 +46,7 @@ Compared with the overall benchmark, Videocards initially appeared weak.
 
 Compared with relevant peers, however, it performed **+3.34 percentage points above peer performance**.
 
-This changed the interpretation from apparent underperformance to a broader category-family pattern.
+This changed the interpretation from apparent underperformance to above-peer performance within its category family.
 
 ### Funnel-stage diagnosis
 
@@ -72,7 +72,7 @@ Priority combined:
 
 ### Largest reliable opportunities
 
-| Funnel stage | Top category | Estimated gap |
+| Funnel stage | Top category | Mathematical gap |
 |---|---|---:|
 | View-to-Cart | Cooler | **609 cart sessions** |
 | View-to-Cart | Motherboard | 406 |
@@ -119,9 +119,9 @@ These patterns identify areas for further investigation but do **not establish t
 
 Several analytical controls were used before interpreting the results:
 
-- Raw sessions were reconstructed using a **30-minute inactivity rule**.
+- Analytical sessions were reconstructed from the raw `user_session` identifiers using a **30-minute inactivity rule**, with a new session beginning only when inactivity exceeded 30 minutes.
 - A **60-minute sensitivity test** produced 531,421 sessions versus 539,812 under the primary rule — approximately **1.55% fewer**.
-- Funnel metrics require events to occur in observed sequence rather than simple event co-occurrence.
+- Funnel progression is evaluated using the earliest observed timestamp for each stage; same-second transitions are retained because the source timestamps have second-level precision only.
 - Category diagnosis uses weighted **leave-one-out peer benchmarks**.
 - Practical sample thresholds are used to separate reliable from directional comparisons.
 - Unmapped categories remain in overall metrics but are excluded from named-category rankings.
@@ -135,11 +135,11 @@ Several analytical controls were used before interpreting the results:
 
 | Priority | Investigation focus |
 |---|---|
-| CPU | Inventory, compatibility information, delivery and checkout friction |
+| CPU | Inventory availability, delivery conditions, checkout issues and product-information clarity |
 | Cooler | Assortment, price positioning and product-page quality |
 | Monitor | Downstream completion, pricing and brand differences |
 | TV | High-price positioning, promotions and value communication |
-| Videoregister | Improve data coverage before deeper attribution |
+| Videoregister | Improve data coverage before deeper driver analysis |
 
 Additional inventory, promotion, shipping, product-page and checkout data would be required for stronger root-cause diagnosis.
 
@@ -149,14 +149,11 @@ Additional inventory, promotion, shipping, product-page and checkout data would 
 
 The analysis uses different grains according to the business question:
 
-`Event → Session → Session + Category → Session + Brand / Product`
-
-**Tools**
-
-- **DuckDB / SQL:** profiling, session reconstruction, funnel metrics, peer benchmarking and driver analysis
-- **Power BI / DAX:** measures, relationships, slicers, filtering, tooltips and dashboard visualisation
-- **GitHub:** project documentation and reproducible analysis structure
-
+- **Overall funnel:** Event → Session
+- **Category diagnosis:** Session + Category
+- **Brand analysis:** Session + Category + Brand
+- **Price analysis:** Product-level price assignment → Session + Product
+- **Power BI outputs:** purpose-built category, funnel-stage, brand and price-band semantic tables
 ---
 
 ## Project Files
@@ -165,6 +162,7 @@ The analysis uses different grains according to the business question:
 
 | File | Purpose |
 |---|---|
+| [`00_setup_import.sql`](sql/00_setup_import.sql) | Import the raw CSV into DuckDB |
 | [`01_data_profiling.sql`](sql/01_data_profiling.sql) | Raw data profiling |
 | [`02_session_reconstruction.sql`](sql/02_session_reconstruction.sql) | Session reconstruction and sensitivity test |
 | [`03_funnel_metrics.sql`](sql/03_funnel_metrics.sql) | Ordered funnel metrics |
