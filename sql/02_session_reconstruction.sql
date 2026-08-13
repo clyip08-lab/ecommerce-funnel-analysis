@@ -263,7 +263,10 @@ FROM analysis_events_30;
 
 -- ------------------------------------------------------------
 -- 8. Validate that no analytical session contains
---    an internal inactivity gap >= 30 minutes
+--    an internal inactivity gap greater than 30 minutes
+--
+-- Exactly 30 minutes is valid under the primary rule and
+-- remains within the same analytical session.
 -- ------------------------------------------------------------
 
 WITH internal_gaps AS (
@@ -284,7 +287,7 @@ SELECT
     COUNT(*) FILTER (
         WHERE previous_event_time IS NOT NULL
           AND event_time_utc - previous_event_time
-              >= INTERVAL '30 minutes'
+              > INTERVAL '30 minutes'
     ) AS invalid_internal_gaps
 
 FROM internal_gaps;
