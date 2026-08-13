@@ -35,5 +35,7 @@ SELECT
     COUNT(*) AS raw_rows
 FROM raw_events;
 
+-- Expected row count:
+-- 885,129
 
 DESCRIBE raw_events;
