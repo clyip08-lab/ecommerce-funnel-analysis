@@ -4,7 +4,8 @@
 --
 -- Purpose:
 -- Analyse monthly funnel performance to identify which funnel
--- stage was driving changes in overall purchase performance.
+-- stages strengthened or weakened alongside changes in overall
+-- purchase performance.
 --
 -- Important:
 -- September 2020 is a partial month because the dataset begins
