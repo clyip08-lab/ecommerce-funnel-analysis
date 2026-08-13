@@ -232,7 +232,7 @@ Main table:
 
 | Field | Definition |
 |---|---|
-| `peer_category_count` | Number of other eligible categories contributing to the category's peer benchmark |
+| `peer_category_count` | Number of other categories in the same peer family contributing to the benchmark |
 | `peer_viewing_sessions` | Total viewing denominator from peer categories |
 | `peer_cart_sessions` | Total cart denominator from peer categories |
 | `peer_view_to_cart_rate_pct` | Weighted View→Cart rate of other categories in the same peer family |
