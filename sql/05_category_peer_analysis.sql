@@ -30,7 +30,6 @@ CREATE OR REPLACE TABLE category_events_known_30 AS
 SELECT
     analytical_session_id,
     event_time_utc,
-    source_event_id,
     event_type,
     category_code,
 
@@ -51,31 +50,10 @@ WHERE category_code IS NOT NULL
 
 
 -- ------------------------------------------------------------
--- 2. Assign event sequence within session + category
+-- 2. Collapse to one row per session + category
 --
--- A session may touch multiple categories, so the analytical
--- grain here is NOT simply one row per session.
--- ------------------------------------------------------------
-
-CREATE OR REPLACE TABLE category_event_sequence_30 AS
-
-SELECT
-    *,
-
-    ROW_NUMBER() OVER (
-        PARTITION BY
-            analytical_session_id,
-            category_code
-        ORDER BY
-            event_time_utc,
-            source_event_id
-    ) AS category_event_sequence
-
-FROM category_events_known_30;
-
-
--- ------------------------------------------------------------
--- 3. Collapse to one row per session + category
+-- Funnel progression uses the earliest observed timestamp for
+-- each stage rather than raw source-row sequence.
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE session_category_code_summary_30 AS
@@ -102,20 +80,20 @@ SELECT
 
     MIN(CASE
         WHEN event_type = 'view'
-        THEN category_event_sequence
-    END) AS first_view_sequence,
+        THEN event_time_utc
+    END) AS first_view_time,
 
     MIN(CASE
         WHEN event_type = 'cart'
-        THEN category_event_sequence
-    END) AS first_cart_sequence,
+        THEN event_time_utc
+    END) AS first_cart_time,
 
     MIN(CASE
         WHEN event_type = 'purchase'
-        THEN category_event_sequence
-    END) AS first_purchase_sequence
+        THEN event_time_utc
+    END) AS first_purchase_time
 
-FROM category_event_sequence_30
+FROM category_events_known_30
 
 GROUP BY
     analytical_session_id,
@@ -133,7 +111,10 @@ known category codes                    107
 
 
 -- ------------------------------------------------------------
--- 4. Add ordered category-level funnel flags
+-- 3. Add ordered category-level funnel flags
+--
+-- Same-second transitions are retained because the source
+-- timestamps have second-level precision only.
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE session_category_funnel_30 AS
@@ -142,23 +123,23 @@ SELECT
     *,
 
     CASE
-        WHEN first_view_sequence IS NOT NULL
-         AND first_cart_sequence IS NOT NULL
-         AND first_view_sequence < first_cart_sequence
+        WHEN first_view_time IS NOT NULL
+         AND first_cart_time IS NOT NULL
+         AND first_view_time <= first_cart_time
         THEN 1 ELSE 0
     END AS ordered_view_to_cart,
 
     CASE
-        WHEN first_cart_sequence IS NOT NULL
-         AND first_purchase_sequence IS NOT NULL
-         AND first_cart_sequence < first_purchase_sequence
+        WHEN first_cart_time IS NOT NULL
+         AND first_purchase_time IS NOT NULL
+         AND first_cart_time <= first_purchase_time
         THEN 1 ELSE 0
     END AS ordered_cart_to_purchase,
 
     CASE
-        WHEN first_view_sequence IS NOT NULL
-         AND first_purchase_sequence IS NOT NULL
-         AND first_view_sequence < first_purchase_sequence
+        WHEN first_view_time IS NOT NULL
+         AND first_purchase_time IS NOT NULL
+         AND first_view_time <= first_purchase_time
         THEN 1 ELSE 0
     END AS ordered_view_to_purchase
 
@@ -166,7 +147,7 @@ FROM session_category_code_summary_30;
 
 
 -- ------------------------------------------------------------
--- 5. Aggregate category performance
+-- 4. Aggregate category performance
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE category_performance_30 AS
@@ -221,7 +202,7 @@ Weighted View-to-Purchase         4.69%
 
 
 -- ------------------------------------------------------------
--- 6. Calculate weighted site-level benchmark
+-- 5. Calculate weighted site-level benchmark
 --
 -- IMPORTANT:
 -- This is weighted by session denominator.
@@ -254,7 +235,7 @@ Site Cart-to-Purchase  46.77%
 
 
 -- ------------------------------------------------------------
--- 7. Review denominator distributions
+-- 6. Review denominator distributions
 --
 -- These percentiles were used to choose practical thresholds.
 -- They are NOT performance benchmarks.
@@ -303,7 +284,7 @@ statistical-significance tests.
 
 
 -- ------------------------------------------------------------
--- 8. Build leave-one-out category peer benchmarks
+-- 7. Build leave-one-out category peer benchmarks
 --
 -- For every target category:
 --
@@ -375,7 +356,7 @@ GROUP BY
 
 
 -- ------------------------------------------------------------
--- 9. Add peer-relative gaps and reliability classification
+-- 8. Add peer-relative gaps and reliability classification
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE category_peer_diagnosis_30 AS
@@ -423,7 +404,7 @@ FROM category_peer_benchmark_30;
 
 
 -- ------------------------------------------------------------
--- 10. Classify which funnel stage needs attention
+-- 9. Classify which funnel stage needs attention
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE category_peer_classification_30 AS
@@ -457,7 +438,7 @@ FROM category_peer_diagnosis_30;
 
 
 -- ------------------------------------------------------------
--- 11. Calculate opportunity gaps
+-- 10. Calculate opportunity gaps
 --
 -- Formula:
 --
@@ -546,7 +527,7 @@ FROM category_peer_classification_30;
 
 
 -- ------------------------------------------------------------
--- 12. Largest RELIABLE View-to-Cart opportunities
+-- 11. Largest RELIABLE View-to-Cart opportunities
 -- ------------------------------------------------------------
 
 SELECT
@@ -576,7 +557,7 @@ ORDER BY
 /*
 Reliable dashboard priorities included:
 
-Cooler         609 estimated cart-session gap
+Cooler         609 mathematical cart-session gap
 Motherboard    406
 CPU            291
 HDD            175
@@ -585,7 +566,7 @@ Mouse          166
 
 
 -- ------------------------------------------------------------
--- 13. Largest RELIABLE Cart-to-Purchase opportunities
+-- 12. Largest RELIABLE Cart-to-Purchase opportunities
 -- ------------------------------------------------------------
 
 SELECT
@@ -615,7 +596,7 @@ ORDER BY
 /*
 Reliable dashboard priorities included:
 
-CPU              120 estimated purchase-session gap
+CPU              120 mathematical purchase-session gap
 Monitor           49
 Acoustic audio    44
 Drill             26
@@ -624,7 +605,7 @@ Videoregister     24
 
 
 -- ------------------------------------------------------------
--- 14. Example: why peer benchmark changes interpretation
+-- 13. Example: why peer benchmark changes interpretation
 -- ------------------------------------------------------------
 
 SELECT
@@ -672,7 +653,7 @@ This is why benchmark choice matters.
 
 
 -- ------------------------------------------------------------
--- 15. Power BI category peer output
+-- 14. Power BI category peer output
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE pbi_category_peer_30 AS
@@ -707,7 +688,7 @@ FROM category_peer_classification_30;
 
 
 -- ------------------------------------------------------------
--- 16. Power BI opportunity output
+-- 15. Power BI opportunity output
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE TABLE pbi_category_opportunity_30 AS
