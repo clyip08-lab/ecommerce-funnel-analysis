@@ -62,34 +62,40 @@ Rows without usable `user_id`, `user_session` or event timestamp are excluded fr
 
 ## 3. Analytical Session Fields
 
-Main table: `analysis_events_30`
+Main intermediate and analytical tables:
 
-Grain:
+- `event_gaps`
+- `event_session_flags`
+- `event_session_numbers`
+- `analysis_events_30`
 
-**one event inside one reconstructed analytical session**
+The session-reconstruction pipeline progressively adds timing gaps, session-start flags, session numbers and the final analytical session identifier.
 
 | Field | Definition |
 |---|---|
-| `previous_event_time` | Previous event timestamp within the same user and raw session |
-| `new_session_flag` | `1` when the event starts a new analytical session, otherwise `0` |
-| `analytical_session_number` | Sequential session number created using the cumulative sum of session-start flags |
-| `analytical_session_id` | Reconstructed session identifier combining user, raw session and analytical session number |
+| `previous_event_time` | Previous event timestamp within the same `user_id + raw user_session` stream; created in `event_gaps` |
+| `new_session_flag` | `1` when the event begins a new analytical session under the inactivity rule, otherwise `0`; created in `event_session_flags` |
+| `analytical_session_number` | Sequential session number produced by cumulatively summing session-start flags within each user and raw session |
+| `analytical_session_id` | Final reconstructed session identifier combining user, raw session and analytical session number |
 
 ### Primary session rule
 
 A new analytical session starts when:
 
-- the event is the first event in the user-session combination;
-- the calendar date changes; or
-- inactivity is at least 30 minutes.
+- the event is the first event in the `user_id + raw user_session` stream; or
+- inactivity from the previous event **exceeds 30 minutes**.
+
+Events separated by **30 minutes or less** remain in the same analytical session.
+
+Crossing midnight alone does not force a new analytical session.
 
 The primary rule produced:
 
 **539,812 analytical sessions**
 
-A 60-minute sensitivity version produced:
+A sensitivity version using inactivity **exceeding 60 minutes** produced:
 
-**531,421 sessions**
+**531,421 analytical sessions**
 
 ---
 
@@ -108,15 +114,16 @@ Grain:
 |---|---|
 | `session_start_time` | Earliest observed event timestamp in the analytical session |
 | `session_end_time` | Latest observed event timestamp in the analytical session |
-| `has_view` | `1` if at least one view event was observed in the session |
-| `has_cart` | `1` if at least one cart event was observed |
-| `has_purchase` | `1` if at least one purchase event was observed |
-| `first_view_sequence` | Sequence position of the first observed view |
-| `first_cart_sequence` | Sequence position of the first observed cart |
-| `first_purchase_sequence` | Sequence position of the first observed purchase |
-| `ordered_view_to_cart` | `1` when the first view occurs before the first cart |
-| `ordered_cart_to_purchase` | `1` when the first cart occurs before the first purchase |
-| `complete_ordered_funnel` | `1` when View → Cart → Purchase is observed in sequence |
+| `has_view` | `1` if at least one View event was observed in the session |
+| `has_cart` | `1` if at least one Cart event was observed in the session |
+| `has_purchase` | `1` if at least one Purchase event was observed in the session |
+| `first_view_time` | Earliest observed View timestamp in the session |
+| `first_cart_time` | Earliest observed Cart timestamp in the session |
+| `first_purchase_time` | Earliest observed Purchase timestamp in the session |
+| `ordered_view_to_cart` | `1` when both stages are observed and `first_view_time <= first_cart_time` |
+| `ordered_cart_to_purchase` | `1` when both stages are observed and `first_cart_time <= first_purchase_time` |
+| `complete_ordered_funnel` | `1` when `first_view_time <= first_cart_time <= first_purchase_time` |
+
 
 ### Important distinction
 
@@ -130,7 +137,9 @@ It does not mean:
 
 **exactly one cart event occurred**
 
-Likewise, `ordered_view_to_cart = 1` indicates observed event order rather than the number of carts.
+Likewise, `ordered_view_to_cart = 1` indicates that the earliest observed stage timestamps are compatible with View → Cart progression.
+
+Same-second transitions are retained because the source timestamps have second-level precision only. They should not be interpreted as proof of sub-second behavioural order.
 
 ---
 
@@ -305,7 +314,7 @@ Grain:
 | `category_rate_pct` | Actual category conversion rate |
 | `peer_rate_pct` | Weighted leave-one-out peer conversion rate |
 | `rate_gap_pp` | Peer rate minus actual category rate for opportunity sizing |
-| `opportunity_gap_sessions` | Estimated session gap if the category mathematically reached the peer rate |
+| `opportunity_gap_sessions` | Mathematical peer-relative session gap used for prioritisation |
 | `peer_confidence` | Reliability classification for the opportunity estimate |
 
 ### Opportunity gap formula
@@ -318,9 +327,11 @@ Example:
 
 `6,000 × (15% − 10%) = 300`
 
-The result is an estimated mathematical gap used for prioritisation.
+The result is a **mathematical peer-relative gap used for prioritisation**.
 
-It is **not** a forecast of guaranteed incremental conversions.
+It expresses the observed rate gap in session-volume terms.
+
+It is **not** a forecast of future incremental conversions and does not imply that reaching the peer benchmark is guaranteed.
 
 ---
 
@@ -365,7 +376,7 @@ Grain:
 | `include_main_comparison` | Indicates whether the price band is included in the primary Power BI visual comparison |
 | `funnel_stage` | View-to-Cart or Cart-to-Purchase |
 | `numerator_session_products` | Ordered progression count at session-product grain |
-| `denominator_session_products` | Relevant session-product denominator |
+| `denominator_session_products` | Relevant session-product denominator for the funnel stage |
 | `conversion_rate_pct` | Numerator ÷ denominator × 100 |
 
 ### Price bands
